@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
@@ -22,21 +24,10 @@ class _NoteDialogState extends State<NoteDialog> {
 
   @override
   void initState() {
-    // TODO: implement inistate
     super.initState();
     if (widget.note != null) {
       _titleController.text = widget.note!.title;
       _descriptionController.text = widget.note!.description;
-    }
-  }
-
-  Future<void> _pickerImage() async {
-    final pickedFile =
-        await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
-      setState(() {
-        _imageFile = pickedFile;
-      });
     }
   }
 
@@ -47,60 +38,113 @@ class _NoteDialogState extends State<NoteDialog> {
     });
   }
 
+  Future<void> _pickImage() async {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Select Image Source'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                final pickedFile =
+                    await ImagePicker().pickImage(source: ImageSource.camera);
+                if (pickedFile != null) {
+                  setState(() {
+                    _imageFile = pickedFile;
+                  });
+                  // Upload image to Firebase here
+                  String? imageUrl = await NoteService.uploadImage(_imageFile!);
+                  setState(() {
+                    _imageFile = XFile(imageUrl!); // Optionally update image file
+                  });
+                }
+              },
+              child: const Text('Camera'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                final pickedFile =
+                    await ImagePicker().pickImage(source: ImageSource.gallery);
+                if (pickedFile != null) {
+                  setState(() {
+                    _imageFile = pickedFile;
+                  });
+                  // Upload image to Firebase here
+                  String? imageUrl = await NoteService.uploadImage(_imageFile!);
+                  setState(() {
+                    _imageFile = XFile(imageUrl!); // Optionally update image file
+                  });
+                }
+              },
+              child: const Text('Browse'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(widget.note == null ? 'Add Notes' : 'Update Notes'),
-      content: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Title: ',
-            textAlign: TextAlign.start,
-          ),
-          TextField(
-            controller: _titleController,
-          ),
-          const Padding(
-            padding: EdgeInsets.only(top: 20),
-            child: Text(
-              'Description: ',
+      content: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Title: ',
+              textAlign: TextAlign.start,
             ),
-          ),
-          TextField(
-            controller: _descriptionController,
-          ),
-          const Padding(
-            padding: EdgeInsets.only(
-              top: 20,
+            TextField(
+              controller: _titleController,
             ),
-            child: Text('Image: '),
-          ),
-          Expanded(
+            const Padding(
+              padding: EdgeInsets.only(top: 20),
+              child: Text(
+                'Description: ',
+              ),
+            ),
+            TextField(
+              controller: _descriptionController,
+            ),
+            const Padding(
+              padding: EdgeInsets.only(
+                top: 20,
+              ),
+              child: Text('Image: '),
+            ),
+            SizedBox(
+              height: 200, // Set tinggi maksimal gambar di sini
               child: _imageFile != null
-                  ? Image.network(_imageFile!.path, fit: BoxFit.cover)
-                  : widget.note?.imageUrl != null &&
+                  ? Image.file(File(_imageFile!.path), fit: BoxFit.cover)
+                  : (widget.note?.imageUrl != null &&
                           Uri.parse(widget.note!.imageUrl!).isAbsolute
                       ? Image.network(
                           widget.note!.imageUrl!,
                           fit: BoxFit.cover,
                         )
                       : Container()),
-          TextButton(
-            onPressed: _pickerImage,
-            child: const Text('Pick Image'),
-          ),
-          TextButton(
-            onPressed: _getLocation,
-            child: const Text('Get Location'),
-          ),
-          Text(
-            _position?.latitude != null && _position?.longitude != null
-                ? "Current Location : ${_position!.latitude.toString()}, ${_position!.longitude.toString()}"
-                : "Current Location : ${widget.note!.lat}, ${widget.note!.lng}",
-            textAlign: TextAlign.start,
-          )
-        ],
+            ),
+            TextButton(
+              onPressed: _pickImage,
+              child: const Text('Pick Image'),
+            ),
+            TextButton(
+              onPressed: _getLocation,
+              child: const Text('Get Location'),
+            ),
+            Text(
+              _position?.latitude != null && _position?.longitude != null
+                  ? "Current Location : ${_position!.latitude.toString()}, ${_position!.longitude.toString()}"
+                  : "Current Location : ${widget.note?.lat}, ${widget.note?.lng}",
+              textAlign: TextAlign.start,
+            )
+          ],
+        ),
       ),
       actions: [
         Padding(
@@ -125,11 +169,11 @@ class _NoteDialogState extends State<NoteDialog> {
               title: _titleController.text,
               description: _descriptionController.text,
               imageUrl: imageUrl,
-              lat: widget.note?.lat != _position!.latitude.toString()
-                  ? _position!.latitude.toString()
+              lat: widget.note?.lat.toString() != _position?.latitude.toString()
+                  ? _position?.latitude.toString()
                   : widget.note?.lat.toString(),
-              lng: widget.note?.lng != _position!.longitude.toString()
-                  ? _position!.longitude.toString()
+              lng: widget.note?.lng.toString() != _position?.longitude.toString()
+                  ? _position?.longitude.toString()
                   : widget.note?.lng.toString(),
               createdAt: widget.note?.createdAt,
             );
