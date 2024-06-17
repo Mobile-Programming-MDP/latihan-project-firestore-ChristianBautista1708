@@ -28,7 +28,7 @@ class _NoteListScreenState extends State<NoteListScreen> {
         title: const Text('Notes'),
         actions: [
           IconButton(
-            icon: Icon(Icons.lightbulb),
+            icon: Icon(Icons.dark_mode),
             onPressed: widget.toggleTheme,
           ),
         ],

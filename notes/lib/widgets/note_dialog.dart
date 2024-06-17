@@ -38,7 +38,16 @@ class _NoteDialogState extends State<NoteDialog> {
     });
   }
 
-  Future<void> _pickImage() async {
+  Future<void> _pickImage(ImageSource source) async {
+    final pickedFile = await ImagePicker().pickImage(source: source);
+    if (pickedFile != null) {
+      setState(() {
+        _imageFile = pickedFile;
+      });
+    }
+  }
+
+  Future<void> _showImageSourceDialog() async {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -46,40 +55,18 @@ class _NoteDialogState extends State<NoteDialog> {
           title: const Text('Select Image Source'),
           actions: <Widget>[
             TextButton(
-              onPressed: () async {
+              onPressed: () {
                 Navigator.of(context).pop();
-                final pickedFile =
-                    await ImagePicker().pickImage(source: ImageSource.camera);
-                if (pickedFile != null) {
-                  setState(() {
-                    _imageFile = pickedFile;
-                  });
-                  // Upload image to Firebase here
-                  String? imageUrl = await NoteService.uploadImage(_imageFile!);
-                  setState(() {
-                    _imageFile = XFile(imageUrl!); // Optionally update image file
-                  });
-                }
+                _pickImage(ImageSource.camera);
               },
               child: const Text('Camera'),
             ),
             TextButton(
-              onPressed: () async {
+              onPressed: () {
                 Navigator.of(context).pop();
-                final pickedFile =
-                    await ImagePicker().pickImage(source: ImageSource.gallery);
-                if (pickedFile != null) {
-                  setState(() {
-                    _imageFile = pickedFile;
-                  });
-                  // Upload image to Firebase here
-                  String? imageUrl = await NoteService.uploadImage(_imageFile!);
-                  setState(() {
-                    _imageFile = XFile(imageUrl!); // Optionally update image file
-                  });
-                }
+                _pickImage(ImageSource.gallery);
               },
-              child: const Text('Browse'),
+              child: const Text('Gallery'),
             ),
           ],
         );
@@ -95,42 +82,28 @@ class _NoteDialogState extends State<NoteDialog> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Title: ',
-              textAlign: TextAlign.start,
-            ),
-            TextField(
-              controller: _titleController,
-            ),
+            const Text('Title: ', textAlign: TextAlign.start),
+            TextField(controller: _titleController),
             const Padding(
               padding: EdgeInsets.only(top: 20),
-              child: Text(
-                'Description: ',
-              ),
+              child: Text('Description: '),
             ),
-            TextField(
-              controller: _descriptionController,
-            ),
+            TextField(controller: _descriptionController),
             const Padding(
-              padding: EdgeInsets.only(
-                top: 20,
-              ),
+              padding: EdgeInsets.only(top: 20),
               child: Text('Image: '),
             ),
             SizedBox(
-              height: 200, // Set tinggi maksimal gambar di sini
+              height: 200,
               child: _imageFile != null
                   ? Image.file(File(_imageFile!.path), fit: BoxFit.cover)
                   : (widget.note?.imageUrl != null &&
                           Uri.parse(widget.note!.imageUrl!).isAbsolute
-                      ? Image.network(
-                          widget.note!.imageUrl!,
-                          fit: BoxFit.cover,
-                        )
+                      ? Image.network(widget.note!.imageUrl!, fit: BoxFit.cover)
                       : Container()),
             ),
             TextButton(
-              onPressed: _pickImage,
+              onPressed: _showImageSourceDialog,
               child: const Text('Pick Image'),
             ),
             TextButton(
@@ -158,12 +131,18 @@ class _NoteDialogState extends State<NoteDialog> {
         ),
         ElevatedButton(
           onPressed: () async {
-            String? imageUrl;
+            String? imageUrl = widget.note?.imageUrl;
             if (_imageFile != null) {
               imageUrl = await NoteService.uploadImage(_imageFile!);
-            } else {
-              imageUrl = widget.note?.imageUrl;
+              if (imageUrl == null) {
+                // Show error message if the image upload failed
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to upload image')),
+                );
+                return;
+              }
             }
+
             Note note = Note(
               id: widget.note?.id,
               title: _titleController.text,
@@ -178,12 +157,11 @@ class _NoteDialogState extends State<NoteDialog> {
               createdAt: widget.note?.createdAt,
             );
             if (widget.note == null) {
-              NoteService.addNote(note).whenComplete(() {
-                Navigator.of(context).pop();
-              });
+              await NoteService.addNote(note);
+              Navigator.of(context).pop();
             } else {
-              NoteService.updateNote(note)
-                  .whenComplete(() => Navigator.of(context).pop());
+              await NoteService.updateNote(note);
+              Navigator.of(context).pop();
             }
           },
           child: Text(widget.note == null ? 'Add' : 'Update'),
